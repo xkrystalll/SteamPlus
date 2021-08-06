@@ -1,17 +1,14 @@
-﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
 
 namespace SteamPlus
 {
     class Program
     {
         private List<string> _gamesAppIds = new List<string>();
-        private Dictionary<string, string> _games = new Dictionary<string, string>();
         string path = "";
         private static Program program = new Program();
         static void Main(string[] args)
@@ -37,7 +34,7 @@ namespace SteamPlus
         {
             Console.WriteLine("Введите appid игры:");
             string appid = Console.ReadLine();
-            System.IO.File.AppendAllText("gamesAppids.txt", $"\n{appid}");
+            File.AppendAllText("gamesAppids.txt", $"\n{appid}");
             Console.WriteLine($"Игра с appid {appid} добавлена!");
             GetGames();
             Main(null);
@@ -46,9 +43,9 @@ namespace SteamPlus
         private void SwitchGame()
         {
             int i = 1;
-            foreach (var x in _games)
+            foreach (var x in _gamesAppIds)
             {
-                Console.WriteLine($"{i}. {x.Value}");
+                Console.WriteLine($"{i}. {x}");
                 i++;
             }
             Console.WriteLine("-1. Добавить новую игру");
@@ -68,7 +65,7 @@ namespace SteamPlus
             {
                 if (CheckValidSwitchedGame(result))
                 {
-                    RunSteam(_games.ToList()[result - 1].Key);
+                    RunSteam(_gamesAppIds[result - 1]);
                 }
                 else
                 {
@@ -85,15 +82,33 @@ namespace SteamPlus
             {
                 return false;
             }
-            if (num - 1 <= 0)
+            if (num - 1 < 0)
             {
                 return false;
             }
             return true;
         }
 
+        private void KillOldSteamProcess()
+        {
+            List<string> name = new List<string> { "steam" };
+            Process[] etc = Process.GetProcesses();
+            foreach (Process anti in etc)
+            {
+                foreach (string s in name)
+                {
+                    if (anti.ProcessName.ToLower().Contains(s.ToLower()))
+                    {
+                        anti.Kill();
+                    }
+                }
+            }
+        }
+
         private void RunSteam(string appid)
         {
+            KillOldSteamProcess();
+
             Process process = new Process();
             ProcessStartInfo info = new ProcessStartInfo
             {
@@ -102,37 +117,6 @@ namespace SteamPlus
             };
             process.StartInfo = info;
             process.Start();
-        }
-        private void GetGameNames()
-        {
-            _games.Clear();
-            foreach (string appid in _gamesAppIds)
-            {
-                using (var strr = new StreamReader(WebRequest.Create($"https://store.steampowered.com/api/appdetails?appids={appid}").GetResponse().GetResponseStream()))
-                {
-                    var str = strr.ReadToEnd().ToString();
-                    JObject o = JObject.Parse(str);
-                    bool success = false;
-                    try
-                    {
-                        success = Convert.ToBoolean(o[appid]["success"].ToString());
-                    }
-                    catch
-                    {
-                        success = true;
-                    }
-                    if (success)
-                    {
-                        _games.Add(appid, o[appid]["data"]["name"].ToString());
-                    }
-                    else
-                    {
-                        _games.Add(appid, appid);
-                        continue;
-                    }
-                }
-            }
-            program.SwitchGame();
         }
 
         private void GetGames()
@@ -158,7 +142,6 @@ namespace SteamPlus
                 Main(null);
                 return;
             }
-            GetGameNames();
         }
     }
 }
